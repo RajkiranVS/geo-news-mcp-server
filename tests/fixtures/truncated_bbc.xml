@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="UTF-8"?><rss xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:atom="http://www.w3.org/2005/Atom" version="2.0" xmlns:media="http://search.yahoo.com/mrss/">
+    <channel>
+        <title><![CDATA[BBC News]]></title>
+        <description><![CDATA[BBC News - World]]></description>
+        <link>https://www.bbc.co.uk/news/world</link>
+        <image>
+            <url>https://news.bbcimg.co.uk/nol/shared/img/bbc_news_120x60.gif</url>
+            <title>BBC News</title>
+            <link>https://www.bbc.co.uk/news/world</link>
+        </image>
+        <generator>RSS for Node</generator>
+        <lastBuildDate>Tue, 10 Nov 2026 07:13:03 GMT</lastBuildDate>
+        <atom:link href="https://feeds.bbci.co.uk/news/world/rss.xml" rel="self" type="application/rss+xml"/>
+        <copyright><![CDATA[Copyright: (C) British Broadcasting Corporation, see https://www.bbc.co.uk/usingthebbc/terms-of-use/#15metadataandrssfeeds for terms and conditions of reuse.]]></copyright>
+        <language><![CDATA[en-gb]]></language>
+        <ttl>15</ttl>
+        <item>
+            <title><![CDATA[Trump says FBI investigating Nvidia boss's affair with alleged Chinese spy]]></title>
+            <description><![CDATA[The US president said he spoke with Jensen Huang on Monday and asked him about the affair with the alleged spy.]]></description>
+            <link>https://www.bbc.co.uk/news/articles/cqg7x7dpvym8o?at_medium=RSS&amp;at_campaign=rss</link>
+            <guid isPermaLink="false">https://www.bbc.co.uk/news/articles/cqg7x7dpvym8o#0</guid>
+            <pubDate>Tue, 10 Nov 2026 03:58:13 GMT</pubDate>
+            <media:thumbnail width="240" height="135" url="https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/f773/live/9c28e680-dc95-11f1-a701-fddedf244c16.jpg"/>
+        </item>
+        <item>
+            <title><![CDATA[Ukraine peace talks resume with 'some flexibility' by warring sides, US officials say]]></title>
+            <description><![CDATA[Kyiv, Washington and Moscow are all sending delegation to the United Arab Emirates for the first trilateral talks since February.]]></description>
+            <link>https://www.bbc.co.uk/news/articles/cqpvgvrpjvv8o?at_medium=RSS&amp;at_campaign=rss</link>
+            <guid isPermaLink="false">https://www.bbc.co.uk/news/articles/cqpvgvrpjvv8o#0</guid>
+            <pubDate>Tue, 10 Nov 2026 00:09:49 GMT</pubDate>
+            <media:thumbnail width="240" height="135" url="https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/3d4a/live/c60a1ad0-dc88-11f1-851a-19e868620cad.jpg"/>
+        </item>
+        <item>
+            <title><![CDATA[Trump says more US attacks on Iran 'highly unlikely']]></title>
+            <description><![CDATA[The president says the US is keeping "status quo" with Iran but remains “locked and loaded” should the situation change.]]></description>
+            <link>https://www.bbc.co.uk/news/articles/cq5yny4nl2d3o?at_medium=RSS&amp;at_campaign=rss</link>
+            <guid isPermaLink="false">https://www.bbc.co.uk/news/articles/cq5yny4nl2d3o#0</guid>
+            <pubDate>Tue, 10 Nov 2026 05:33:25 GMT</pubDate>
+            <media:thumbnail width="240" height="135" url="https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/8875/live/688f5f40-dcd4-11f1-83bc-5f6951e00987.jpg"/>
+        </item>
+        <item>
+            <title><![CDATA[Epstein associate who still runs model agency 'put me in danger' says abuse survivor]]></title>
+            <description><![CDATA[A woman says an agency boss sent her to photoshoots at the sex offender's Florida beach home.]]></description>
+            <link>https://www.bbc.co.uk/news/articles/cm86z6w59gggo?at_medium=RSS&amp;at_campaign=rss</link>
+            <guid isPermaLink="false">https://www.bbc.co.uk/news/articles/cm86z6w59gggo#0</guid>
+            <pubDate>Tue, 10 Nov 2026 00:14:03 GMT</pubDate>
+            <media:thumbnail width="240" height="135" url="https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/9349/live/97006970-dc5a-11f1-a701-fddedf244c16.jpg"/>
+        </item>
+        <item>
+            <title><![CDATA[Australia considers criminal penalties for rogue AI in wake of OpenAI hack ]]></title>
+            <description><![CDATA[AI safety regulator will also be created after a rogue OpenAI agent hacked government websites.]]></description>
+            <link>https://www.bbc.co.uk/news/articles/cmp3g37l566po?at_medium=RSS&amp;at_campaign=rss</link>
+            <guid isPermaLink="false">https://www.bbc.co.uk/news/articles/cmp3g37l566po#0</guid>
+            <pubDate>Tue, 10 Nov 2026 05:22:39 GMT</pubDate>
+            <media:thumbnail width="240" height="134" url="https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/c11d/live/472ca6e0-dcc6-11f1-a594-d13718d7f889.jpg"/>
+        </item>
+        <item>
+            <title><![CDATA['Cruise for life' ship seized in Singapore ]]></title>
+            <description><![CDATA[The Odyssey was meant to take guests around the world for years, but the trip was cut short after its operator ran out of money.]]></description>
+            <link>https://www.bbc.co.uk/news/articles/cqr7y7myer53o?at_medium=RSS&amp;at_campaign=rss</link>
+            <guid isPermaLink="false">https://www.bbc.co.uk/news/articles/cqr7y7myer53o#0</guid>
+            <pubDate>Tue, 10 Nov 2026 01:49:06 GMT</pubDate>
+            <media:thumbnail width="240" height="135" url="https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/54ec/live/78680920-dca3-11f1-93a0-e3acb3757eea.jpg"/>
+        </item>
+        <item>
+            <title><![CDATA[Republican congressman to force impeachment vote on Defence Secretary Hegseth]]></title>
+            <description><![CDATA[The effort will likely fail, but Representative Thomas Massie wants to push Trump to fire Hegseth before Democrats can launch their own impeachment process next year. ]]></description>
+            <link>https://www.bbc.co.uk/news/articles/cwr5y58jjp8ro?at_medium=RSS&amp;at_campaign=rss</link>
+            <guid isPermaLink="false">https://www.bbc.co.uk/news/articles/cwr5y58jjp8ro#0</guid>
+            <pubDate>Tue, 10 Nov 2026 01:38:49 GMT</pubDate>
+            <media:thumbnail width="240" height="134" url="https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/0303/live/c8a877f0-dc7e-11f1-93e1-3b657b665bcf.png"/>
+        </item>
+        <item>
+            <title><![CDATA[France accuses Iran of supermarket fridge hacking]]></title>
+            <description><![CDATA[Tons of chilled and frozen food was spoiled last month as fridges and freezers in hundreds of supermarkets heated up.]]></description>
+            <link>https://www.bbc.co.uk/news/articles/cmg474vk6dyqo?at_medium=RSS&amp;at_campaign=rss</link>
+            <guid isPermaLink="false">https://www.bbc.co.uk/news/articles/cmg474vk6dyqo#1</guid>
+            <pubDate>Mon, 09 Nov 2026 20:20:08 GMT</pubDate>
+            <media:thumbnail width="240" height="134" url="https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/f0bc/live/eec149b0-dc5d-11f1-8fe6-5becaee5408f.jpg"/>
+        </item>
+        <item>
+            <title><![CDATA[Qantas to outsource 850 local jobs with most roles moving to India ]]></title>
+            <description><![CDATA[The Australian airline said the move was aimed at modernising its IT systems and noted the impact of AI.]]></description>
+            <link>https://www.bbc.co.uk/news/articles/cry838v4qzvyo?at_medium=RSS&amp;at_campaign=rss</link>
+            <guid isPermaLink="false">https://www.bbc.co.uk/news/articles/cry838v4qzvyo#1</guid>
+            <pubDate>Tue, 10 Nov 2026 01:55:22 GMT</pubDate>
+            <media:thumbnail width="240" height="135" url="https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/47eb/live/926fac30-dca6-11f1-86c1-89409a3a3bd9.jpg"/>
+        </item>
+        <item>
+            <title><![CDATA[Russia's leading independent newspaper closes after eviction]]></title>
+            <description><![CDATA[The outlet has been evicted from its offices of three decades and says it's been blocked from receiving donations.
+]]></description>
+            <link>https://www.bbc.co.uk/news/videos/cvrlylj9r11go?at_medium=RSS&amp;at_campaign=rss</link>
+            <guid isPermaLink="false">https://www.bbc.co.uk/news/videos/cvrlylj9r11go#1</guid>
+            <pubDate>Mon, 09 Nov 2026 18:08:07 GMT</pubDate>
+            <media:thumbnail width="240" height="135" url="https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/b69a/live/f62b4ff0-dc64-11f1-a701-fddedf244c16.jpg"/>
+        </item>
+        <item>
+            <title><![CDATA[Turkey steel factory blast kills at least 17 people]]></title>
+            <description><![CDATA[Eyewitnesses say the explosion shook the ground, with one believing an earthquake had hit near the Habas Demir Celik plant in Aliaga.]]></description>
+            <link>https://www.bbc.co.uk/news/articles/cq2d6d5z9y5jo?at_medium=RSS&amp;at_campaign=rss</link>
+            <guid isPermaLink="false">https://www.bbc.co.uk/news/articles/cq2d6d5z9y5jo#1</guid>
+            <pubDate>Mon, 09 Nov 2026 20:42:04 GMT</pubDate>
+            <media:thumbnail width="240" height="135" url="https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/5625/live/fd460940-dc61-11f1-8fe6-5becaee5408f.jpg"/>
+        </item>
+        <item>
+            <title><![CDATA[Judge denies motion to dismiss Lindsay Clancy's murder case]]></title>
+            <description><![CDATA[The ruling means the case can move forward, possibly with reduced charges in a new trial.]]></description>
+            <link>https://www.bbc.co.uk/news/articles/ck1l3le7q29vo?at_medium=RSS&amp;at_campaign=rss</link>
+            <guid isPermaLink="false">https://www.bbc.co.uk/news/articles/ck1l3le7q29vo#1</guid>
+            <pubDate>Mon, 09 Nov 2026 23:28:53 GMT</pubDate>
+            <media:thumbnail width="240" height="135" url="https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/f13d/live/216524b0-dc7f-11f1-ba95-5f07efd49f42.jpg"/>
+        </item>
+        <item>
+            <title><![CDATA[Trial date of alleged Charlie Kirk killer set for June 2028]]></title>
+            <description><![CDATA[Tyler Robinson has pleaded not guilty to aggravated murder and six other charges in connection with the 2025 killing of the conservative activist.]]></description>
+            <link>https://www.bbc.co.uk/news/articles/cq0mem8d2p3xo?at_medium=RSS&amp;at_campaign=rss</link>
+            <guid isPermaLink="false">https://www.bbc.co.uk/news/articles/cq0mem8d2p3xo#1</guid>
+            <pubDate>Mon, 09 Nov 2026 21:48:38 GMT</pubDate>
+            <media:thumbnail width="240" height="134" url="https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/4fe7/live/9ee301c0-795e-11f1-b976-0b9c15b0ccfc.jpg"/>
+        </item>
+        <item>
+            <title><![CDATA[Nine Zimbabweans caught allegedly trying to leave South Africa to fight in Ukraine]]></title>
+            <description><![CDATA[Hundreds of people from different African countries have been recruited to fight for Russia, according to Ukraine.]]></description>
+            <link>https://www.bbc.co.uk/news/articles/cm93z3lp5lnpo?at_medium=RSS&amp;at_campaign=rss</link>
+            <guid isPermaLink="false">https://www.bbc.co.uk/news/articles/cm93z3lp5lnpo#1</guid>
+            <pubDate>Mon, 09 Nov 2026 17:06:18 GMT</pubDate>
+            <media:thumbnail width="240" height="135" url="https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/c8c0/live/5d2b0080-dc36-11f1-95cf-a38331e6cb4b.jpg"/>
+        </item>
+        <item>
+            <title><![CDATA[Trump questions midterm elections integrity after previously accepting results]]></title>
+            <description><![CDATA[Trump made the claims, without evidence, on Truth Social on Monday. ]]></description>
+            <link>https://www.bbc.co.uk/news/articles/ck79p9350zp9o?at_medium=RSS&amp;at_campaign=rss</link>
+            <guid isPermaLink="false">https://www.bbc.co.uk/news/articles/ck79p9350zp9o#1</guid>
+            <pubDate>Mon, 09 Nov 2026 17:47:29 GMT</pubDate>
+            <media:thumbnail width="240" height="135" url="https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/de62/live/5a7465d0-dc53-11f1-a869-656dc96bd12d.jpg"/>
+        </item>
+        <item>
+            <title><![CDATA[At least 39 die after Europe-bound migrant boat sinks off Senegal ]]></title>
+            <description><![CDATA[The Atlantic crossing to Spain's Canary Islands remains dangerous for migrants seeking a better life]]></description>
+            <link>https://www.bbc.co.uk/news/articles/cv2d6dpge65go?at_medium=RSS&amp;at_campaign=rss</link>
+            <guid isPermaLink="false">https://www.bbc.co.uk/news/articles/cv2d6dpge65go#1</guid>
+            <pubDate>Mon, 09 Nov 2026 16:33:55 GMT</pubDate>
+            <media:

@@ -1,0 +1,47 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: Allowlisted RSS news MCP server (FastMCP on Lambda + Web Adapter)
+
+Parameters:
+  McpApiKeySecretArn:
+    Type: String
+    Description: Full ARN of the MCP_API_KEY secret (including the random suffix)
+
+Resources:
+  NewsFeedFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/
+      Handler: run.sh
+      Runtime: python3.12
+      Architectures: [x86_64]
+      MemorySize: 512
+      Timeout: 40
+      Layers:
+        - !Sub arn:aws:lambda:${AWS::Region}:753240598075:layer:LambdaAdapterLayerX86:30
+      Environment:
+        Variables:
+           AWS_LAMBDA_EXEC_WRAPPER: /opt/bootstrap
+           AWS_LWA_PORT: "8080"
+           AWS_LWA_READINESS_CHECK_PATH: /health
+      FunctionUrlConfig:
+        AuthType: NONE
+      Policies:
+        - AWSSecretsManagerGetSecretValuePolicy:
+            SecretArn: !Ref McpApiKeySecretArn
+        - Statement:
+            - Effect: Allow
+              Action: secretsmanager:DescribeSecret
+              Resource: !Ref McpApiKeySecretArn
+        
+            
+  NewsFeedLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${NewsFeedFunction}
+      RetentionInDays: 14
+
+Outputs:
+  McpEndpoint:
+    Description: MCP endpoint for the harness / Inspector
+    Value: !Sub "${NewsFeedFunctionUrl.FunctionUrl}mcp"

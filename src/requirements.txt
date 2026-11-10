@@ -1,0 +1,5 @@
+fastmcp==4.1.7
+httpx==0.28.1
+feedparser==6.0.14
+uvicorn==0.54.0
+aws-secretsmanager-caching==1.2.0
