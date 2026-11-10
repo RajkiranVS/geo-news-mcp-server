@@ -106,6 +106,8 @@ python -m uvicorn server:app --app-dir src --host 0.0.0.0 --port 8080
 
 When `MCP_API_KEY` is set, the server uses it and doesn't call Secrets Manager.
 
+Dependencies are managed with [uv](https://docs.astral.sh/uv/), and `uv.lock` is the source of truth. `src/requirements.txt` is generated from `uv.lock` with `uv export --no-hashes --no-dev --no-emit-project -o src/requirements.txt`; don't edit it by hand. After any `uv add` or `uv lock --upgrade`, re-run the export and commit `pyproject.toml`, `uv.lock` and `src/requirements.txt` together.
+
 - MCP endpoint: `http://localhost:8080/mcp`
 - Health check: `http://localhost:8080/health` (no auth required)
 
