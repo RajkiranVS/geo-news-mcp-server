@@ -4,6 +4,7 @@ imported, so the module never calls Secrets Manager.
 '''
 import importlib
 import sys
+import types
 
 import pytest
 from starlette.testclient import TestClient
@@ -61,3 +62,61 @@ def test_mcp_with_key_reaches_server(client):
     resp = client.post("/mcp", json=INITIALIZE, headers={**MCP_HEADERS, "x-api-key": API_KEY})
     assert resp.status_code == 200
     assert resp.json()["result"]["serverInfo"]["name"] == "Geo Political News Feeder"
+
+
+# --- Secret parsing: plaintext and JSON formats ---
+
+@pytest.fixture
+def server_module(monkeypatch):
+    monkeypatch.setenv("MCP_API_KEY", API_KEY)
+    sys.modules.pop("server", None)
+    yield importlib.import_module("server")
+    sys.modules.pop("server", None)
+
+
+def test_plaintext_secret_is_used_as_is(server_module):
+    assert server_module._parse_secret("plain-key") == "plain-key"
+
+
+def test_json_secret_returns_api_key_field(server_module):
+    assert server_module._parse_secret('{"api_key": "json-key"}') == "json-key"
+
+
+def test_json_secret_without_api_key_raises(server_module):
+    with pytest.raises(RuntimeError, match="api_key"):
+        server_module._parse_secret('{"other": "x"}')
+
+
+def test_malformed_json_secret_raises_without_leaking(server_module):
+    with pytest.raises(RuntimeError) as excinfo:
+        server_module._parse_secret('{"api_key": "s3cret"')
+    assert "s3cret" not in str(excinfo.value)
+    assert excinfo.value.__cause__ is None
+
+
+def test_load_api_key_parses_secrets_manager_json(monkeypatch, server_module):
+    '''
+    With no env var, _load_api_key reads Secrets Manager and parses JSON.
+    botocore and aws_secretsmanager_caching are stubbed, as they are Lambda-only deps.
+    '''
+    class FakeCache:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def get_secret_string(self, name):
+            assert name == "MCP_API_KEY"
+            return '{"api_key": "from-sm"}'
+
+    caching = types.ModuleType("aws_secretsmanager_caching")
+    caching.SecretCache = FakeCache
+    caching.SecretCacheConfig = lambda: None
+    botocore = types.ModuleType("botocore")
+    session = types.ModuleType("botocore.session")
+    session.get_session = lambda: types.SimpleNamespace(create_client=lambda *a, **kw: None)
+    botocore.session = session
+
+    monkeypatch.setitem(sys.modules, "aws_secretsmanager_caching", caching)
+    monkeypatch.setitem(sys.modules, "botocore", botocore)
+    monkeypatch.setitem(sys.modules, "botocore.session", session)
+    monkeypatch.delenv("MCP_API_KEY")
+    assert server_module._load_api_key() == "from-sm"

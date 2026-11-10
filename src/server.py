@@ -1,4 +1,5 @@
 '''Thin MCP wrapper around feeds.fetch_feeds.'''
+import json
 import logging
 import os
 import secrets
@@ -17,10 +18,29 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 
 
+def _parse_secret(secret: str) -> str:
+    '''
+    The API key from a Secrets Manager SecretString. Accepts either key/value
+    JSON ({"api_key": "..."}) or the bare key as plaintext, so the secret can
+    move between formats without breaking running Lambdas.
+    '''
+    if not secret.lstrip().startswith("{"):
+        return secret
+    try:
+        data = json.loads(secret)
+    except json.JSONDecodeError:
+        # Don't chain or echo the secret's contents into logs.
+        raise RuntimeError("Secret MCP_API_KEY looks like JSON but does not parse") from None
+    key = data.get("api_key") if isinstance(data, dict) else None
+    if not isinstance(key, str) or not key:
+        raise RuntimeError('Secret MCP_API_KEY is JSON but has no non-empty "api_key" field')
+    return key
+
+
 def _load_api_key() -> str:
     '''
     MCP_API_KEY from the environment if set (local runs, tests), otherwise from
-    Secrets Manager. The secret must be stored as plaintext, not key/value JSON.
+    Secrets Manager. The secret may be plaintext or JSON; see _parse_secret.
     '''
     key = os.environ.get("MCP_API_KEY")
     if key:
@@ -32,8 +52,8 @@ def _load_api_key() -> str:
     cache = SecretCache(config=SecretCacheConfig(), client=client)
     secret = cache.get_secret_string("MCP_API_KEY")
     if not secret:
-        raise RuntimeError("Secret MCP_API_KEY has no SecretString (is it stored as plaintext?)")
-    return secret
+        raise RuntimeError("Secret MCP_API_KEY has no SecretString")
+    return _parse_secret(secret)
 
 
 MCP_API_KEY = _load_api_key()
