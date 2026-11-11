@@ -9,8 +9,9 @@ from datetime import datetime, timezone
 
 import feedparser
 import httpx
+import pytest
 
-from feeds import FeedError, FeedURLs, fetch_feeds
+from feeds import FeedError, FeedURLs, _keyword_terms, fetch_feeds
 from tests.conftest import load_fixture, rss_response
 
 ALL_FEEDS = ["bbc_world", "hindu_international", "hindu_national"]
@@ -370,3 +371,61 @@ def test_harmless_encoding_warning_is_not_flagged(mock_http):
 
     assert result.failed_feeds == []
     assert len(result.items) == 33
+
+
+# --- keyword terms and relevance ranking ------------------------------------
+
+@pytest.mark.parametrize(
+    ("keyword", "expected"),
+    [
+        ("Russia Ukraine war", ["russia", "ukraine"]),
+        ("U.S. Iran", ["us", "iran"]),
+        ("US Iran", ["us", "iran"]),
+        ("latest news", []),
+        (None, []),
+        ("Iran's war with US", ["iran", "us"]),
+        ("WHO", ["who"]),  # World Health Organization, not the pronoun
+    ],
+)
+def test_keyword_terms(keyword, expected):
+    assert _keyword_terms(keyword) == expected
+
+
+def test_us_matches_dotted_us_and_not_unrelated_titles(mock_http):
+    mock_http.get(FeedURLs["bbc_world"]).mock(
+        return_value=rss_response(
+            rss(
+                "<item><title>U.S. military action in the Gulf</title><link>https://example.com/a</link>"
+                "<description>Officials comment.</description></item>",
+                "<item><title>Russia announces new measures</title><link>https://example.com/b</link>"
+                "<description>Moscow responds.</description></item>",
+            )
+        )
+    )
+
+    result = fetch_feeds(["bbc_world"], keyword="US")
+
+    assert [i.title for i in result.items] == ["U.S. military action in the Gulf"]
+
+
+def test_item_matching_more_terms_ranks_above_newer_single_match(mock_http):
+    mock_http.get(FeedURLs["bbc_world"]).mock(
+        return_value=rss_response(
+            rss(
+                "<item><title>Iran holds drills</title><link>https://example.com/new</link>"
+                "<description>Navy exercises.</description>"
+                "<pubDate>Tue, 10 Nov 2026 12:00:00 GMT</pubDate></item>",
+                "<item><title>US and Iran resume talks</title><link>https://example.com/old</link>"
+                "<description>Envoys meet.</description>"
+                "<pubDate>Mon, 09 Nov 2026 12:00:00 GMT</pubDate></item>",
+            )
+        )
+    )
+
+    result = fetch_feeds(["bbc_world"], keyword="US Iran")
+
+    assert [i.title for i in result.items] == ["US and Iran resume talks", "Iran holds drills"]
+
+
+def test_default_limit_is_five(mock_http):
+    assert len(fetch_feeds(ALL_FEEDS).items) == 5

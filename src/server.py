@@ -1,4 +1,5 @@
 '''Thin MCP wrapper around feeds.fetch_feeds.'''
+import json
 import logging
 import os
 import secrets
@@ -17,10 +18,29 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 
 
+def _parse_secret(secret: str) -> str:
+    '''
+    The API key from a Secrets Manager SecretString. Accepts either key/value
+    JSON ({"api_key": "..."}) or the bare key as plaintext, so the secret can
+    move between formats without breaking running Lambdas.
+    '''
+    if not secret.lstrip().startswith("{"):
+        return secret
+    try:
+        data = json.loads(secret)
+    except json.JSONDecodeError:
+        # Don't chain or echo the secret's contents into logs.
+        raise RuntimeError("Secret MCP_API_KEY looks like JSON but does not parse") from None
+    key = data.get("api_key") if isinstance(data, dict) else None
+    if not isinstance(key, str) or not key:
+        raise RuntimeError('Secret MCP_API_KEY is JSON but has no non-empty "api_key" field')
+    return key
+
+
 def _load_api_key() -> str:
     '''
     MCP_API_KEY from the environment if set (local runs, tests), otherwise from
-    Secrets Manager. The secret must be stored as plaintext, not key/value JSON.
+    Secrets Manager. The secret may be plaintext or JSON; see _parse_secret.
     '''
     key = os.environ.get("MCP_API_KEY")
     if key:
@@ -32,8 +52,8 @@ def _load_api_key() -> str:
     cache = SecretCache(config=SecretCacheConfig(), client=client)
     secret = cache.get_secret_string("MCP_API_KEY")
     if not secret:
-        raise RuntimeError("Secret MCP_API_KEY has no SecretString (is it stored as plaintext?)")
-    return secret
+        raise RuntimeError("Secret MCP_API_KEY has no SecretString")
+    return _parse_secret(secret)
 
 
 MCP_API_KEY = _load_api_key()
@@ -44,37 +64,66 @@ mcp = FastMCP(
 )
 
 
-@mcp.tool
+GET_FEEDS_DESCRIPTION = """\
+Fetch the latest news headlines from one or more feeds.
+
+Feeds (pass one or more in `feed`):
+- bbc_world: BBC News, world headlines.
+- hindu_international: The Hindu, international news.
+- hindu_national: The Hindu, Indian national news.
+
+keyword (optional): words to look for in each item's title and summary. Matching is \
+case-insensitive and on whole words; generic words such as "news", "war", "latest" or \
+"the" are ignored. A multi-word keyword matches items containing ANY of its words, and \
+items matching the most words come first (ties: newest first). Without a keyword, or \
+if it contains only generic words, nothing is filtered and items are newest first.
+
+limit: maximum number of items to return across all feeds. Default 5, maximum 10.
+
+Returns:
+- items: each with source, title, link, published_utc and summary (cut to about 300 \
+characters). published_utc is the date the source gives for the item; some sources \
+put the last update time there rather than first publication, so don't present it as \
+the original publication time. It is null if the source gives no date.
+- failed_feeds: one entry per feed that had a problem, with feed, reason and a short \
+detail. Each feed is fetched independently, so a failed feed does not stop the others: \
+items from the feeds that worked are still returned. Reasons: "timeout", \
+"http_<status>" (e.g. "http_404"), "connection_error", "malformed_feed", \
+"incomplete_feed", "unknown_error". Tell the user which sources failed and why.
+
+"incomplete_feed" is the one failure that still returns items: the source's feed broke \
+partway through, so that source's items are included but some of its results may be \
+missing. Present them as possibly incomplete (e.g. "BBC results may be incomplete").
+
+An empty items list with no failed_feeds means there is no matching news right now. \
+It is not an error; say so rather than retrying or reporting a failure.
+"""
+
+
+@mcp.tool(description=GET_FEEDS_DESCRIPTION)
 def get_feeds(
-    feed: Annotated[list[FeedName], Field(min_length=1)],
-    keyword: str | None = None,
-    limit: Annotated[int, Field(ge=1, le=20)] = 10,
+    feed: Annotated[
+        list[FeedName],
+        Field(
+            min_length=1,
+            description="One or more feeds to fetch: bbc_world (BBC world news), "
+            "hindu_international (The Hindu, international), hindu_national (The Hindu, Indian national).",
+        ),
+    ],
+    keyword: Annotated[
+        str | None,
+        Field(
+            description="Optional words to match in item titles and summaries (case-insensitive, "
+            "whole words, ANY word matches; generic words like 'news' or 'war' are ignored). "
+            "Omit to return all items, newest first.",
+        ),
+    ] = None,
+    limit: Annotated[
+        int,
+        Field(ge=1, le=10, description="Maximum number of items to return across all feeds (1-10)."),
+    ] = 5,
 ) -> FeedResult:
-    '''
-    Fetch the latest headlines from one or more news feeds.
-
-    Available feeds:
-        bbc_world: BBC News world headlines.
-        hindu_international: The Hindu, international news.
-        hindu_national: The Hindu, Indian national news.
-
-    Each feed is fetched independently: if one feed fails, items from the others are
-    still returned and the failure is listed in failed_feeds with the source, a reason
-    code and a short explanation. Tell the user which sources failed and why.
-    Empty items with no failed_feeds means no matching news, not an error.
-
-    A feed with reason "incomplete_feed" appears in failed_feeds AND still contributed
-    items: its data broke partway through, so its items are returned but some may be
-    missing. Present those results as possibly incomplete (e.g. "BBC results may be
-    incomplete"), not as the source's full feed.
-
-    Args:
-        feed (list[FeedName]): One or more feed names to fetch headlines from.
-        keyword (str | None): Case-insensitive keyword matched against the title and summary. If None, no filtering is applied.
-        limit (int): The maximum number of news items to return.
-    Returns:
-        FeedResult: items (newest first) and failed_feeds (feed, reason e.g. "timeout", "http_404", "malformed_feed", "incomplete_feed", and detail).
-    '''
+    '''Tool wrapper around fetch_feeds. The agent-facing docs are GET_FEEDS_DESCRIPTION.'''
     return fetch_feeds(feed, keyword=keyword, limit=limit)
 
 
@@ -84,7 +133,7 @@ async def health_check(request: Request) -> JSONResponse:
 
 class APIKeyMiddleware(BaseHTTPMiddleware):
     '''
-    A BaseHTTP Middlewear class to handle API Calls with Key
+    A BaseHTTP Middleware class to handle API Calls with Key
     '''
     async def dispatch(self, request: Request, call_next):
         if request.url.path == "/health":
