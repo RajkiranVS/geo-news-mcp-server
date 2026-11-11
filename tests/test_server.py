@@ -120,3 +120,32 @@ def test_load_api_key_parses_secrets_manager_json(monkeypatch, server_module):
     monkeypatch.setitem(sys.modules, "botocore.session", session)
     monkeypatch.delenv("MCP_API_KEY")
     assert server_module._load_api_key() == "from-sm"
+
+
+# --- Tool argument validation at the MCP layer ---
+
+def _call_get_feeds(client, arguments: dict):
+    payload = {
+        "jsonrpc": "2.0",
+        "id": 2,
+        "method": "tools/call",
+        "params": {"name": "get_feeds", "arguments": arguments},
+    }
+    return client.post("/mcp", json=payload, headers={**MCP_HEADERS, "x-api-key": API_KEY})
+
+
+def test_limit_above_ten_is_rejected(client, mock_http):
+    resp = _call_get_feeds(client, {"feed": ["bbc_world"], "limit": 11})
+
+    body = resp.json()
+    # FastMCP reports argument validation failures as a tool error result.
+    assert body.get("error") or body["result"]["isError"] is True
+    mock_http.calls.assert_not_called()
+
+
+def test_limit_ten_is_accepted(client, mock_http):
+    resp = _call_get_feeds(client, {"feed": ["bbc_world"], "limit": 10})
+
+    result = resp.json()["result"]
+    assert result["isError"] is False
+    assert len(result["structuredContent"]["items"]) == 10

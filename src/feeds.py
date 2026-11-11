@@ -27,6 +27,21 @@ _ZERO_WIDTH_RE = re.compile("[\u200b-\u200d\ufeff]")  # zero-width space/non-joi
 _WHITESPACE_RE = re.compile(r"\s+")
 # Tags are replaced with spaces, so "<b>Geneva</b>." becomes "Geneva ."; rejoin the punctuation.
 _SPACE_BEFORE_PUNCT_RE = re.compile(r"\s+([.,;:!?])")
+# Words dropped from keywords and item text before matching: generic news words plus
+# common English function words, so e.g. "no-fly zone" doesn't match every headline with "no".
+STOP_WORDS = {
+    # generic news words
+    "war", "wars", "news", "latest", "update", "updates", "conflict", "crisis", "situation",
+    # function words
+    "the", "a", "an", "and", "or", "but", "nor", "not", "no", "so", "such",
+    "of", "on", "in", "into", "to", "for", "from", "by", "at", "as", "with", "about",
+    "over", "after", "before", "against", "between",
+    "is", "are", "was", "were", "be", "been", "being", "has", "have", "had", "do", "does", "did",
+    "will", "would", "can", "could", "should", "may", "might",
+    "it", "its", "this", "that", "these", "those", "he", "she", "they", "we", "you",
+    "his", "her", "their", "our", "your", "what", "which", "when", "where", "how", "why",
+    "all", "any", "some", "more", "most", "very", "than", "then", "there", "here",
+}
 
 FeedName = Literal["bbc_world", "hindu_international", "hindu_national"]
 FeedURLs: dict[FeedName, str] = {
@@ -98,6 +113,37 @@ def _clean_text(text: str) -> str:
     text = _WHITESPACE_RE.sub(" ", text)
     text = _SPACE_BEFORE_PUNCT_RE.sub(r"\1", text)
     return text.strip()
+
+def _tokens(text: str) -> list[str]:
+    '''
+    Split text into lowercase word tokens for keyword matching.
+
+    Periods are removed first so "U.S." becomes "us"; punctuation, hyphens and dashes
+    split words; stop words and one-letter tokens are dropped. Order is preserved and
+    duplicates are kept.
+
+    Args:
+        text: Any text — a user keyword or an item's title and summary.
+    Returns:
+        List of tokens.
+    '''
+    cleaned = _clean_text(text).casefold().replace(".", "")
+    return [word for word in re.findall(r"\w+", cleaned) if word not in STOP_WORDS and len(word) >= 2]
+
+
+def _keyword_terms(keyword: str | None) -> list[str]:
+    '''
+    Match terms for a user keyword: _tokens(keyword) with duplicates removed, order kept.
+    Returns [] for None or an empty/stop-word-only keyword (meaning: no filtering).
+
+    Args:
+        keyword: The user's search keyword, or None.
+    Returns:
+        Deduplicated terms from _tokens, in first-seen order; [] if there are none.
+    '''
+    if not keyword:
+        return []
+    return list(dict.fromkeys(_tokens(keyword)))
 
 
 def _truncate(text: str, max_chars: int = SUMMARY_MAX_CHARS) -> str:
@@ -189,11 +235,17 @@ def _describe_failure(exc: Exception) -> tuple[str, str]:
     return "unknown_error", "An unexpected error occurred while processing the source."
 
 
-def fetch_feeds(feeds: list[FeedName], keyword: str | None = None, limit: int = 10) -> FeedResult:
+def fetch_feeds(feeds: list[FeedName], keyword: str | None = None, limit: int = 5) -> FeedResult:
     '''
-    Fetch each feed independently, filter by keyword, sort newest first and
-    return at most `limit` items with truncated summaries. A failing feed is
-    reported in failed_feeds instead of aborting the others.
+    Fetch each feed independently, rank items by keyword relevance and return
+    at most `limit` items with truncated summaries.
+
+    The keyword is split into terms (see _keyword_terms). Each item scores one
+    point per term found in its title or summary. Items with no matches are
+    dropped, and the rest are sorted by score, then newest first (undated items
+    last). If the keyword is missing or contains only stop words, every item is
+    kept, newest first. A failing feed is reported in failed_feeds instead of
+    stopping the others.
     '''
     items: list[FeedItem] = []
     failed: list[FeedError] = []
@@ -222,11 +274,27 @@ def fetch_feeds(feeds: list[FeedName], keyword: str | None = None, limit: int = 
                 logger.exception("Unexpected error processing feed %s (%s)", feed_name, url)
                 failed.append(FeedError(feed=feed_name, reason=reason, detail=detail))
 
-    if keyword:
-        kw = keyword.lower()
-        items = [i for i in items if kw in i.title.lower() or kw in i.summary.lower()]
+    terms = _keyword_terms(keyword)
+    scored_items = []
 
-    items.sort(key=lambda x: x.published_utc or datetime.min.replace(tzinfo=timezone.utc), reverse=True)
-    # Truncate only after filtering, and only the items actually returned.
-    kept = [i.model_copy(update={"summary": _truncate(i.summary)}) for i in items[:limit]]
-    return FeedResult(items=kept, failed_feeds=failed)
+    if terms:
+        for item in items:
+            item_tokens = set(_tokens(f"{item.title} {item.summary}"))
+            score = sum(t in item_tokens for t in terms)
+            if score >= 1:
+                scored_items.append((score, item))
+    else:
+        # Keep all items with a neutral score of 0 if no valid terms exist
+        scored_items = [(0, item) for item in items]
+
+    scored_items.sort(
+        key=lambda pair: (
+            -pair[0],
+            -pair[1].published_utc.timestamp() if pair[1].published_utc is not None else float("inf"),
+        )
+    )
+
+    # Truncate only after ranking, and only the items actually returned.
+    results = [item.model_copy(update={"summary": _truncate(item.summary)}) for _, item in scored_items[:limit]]
+
+    return FeedResult(items=results, failed_feeds=failed)
