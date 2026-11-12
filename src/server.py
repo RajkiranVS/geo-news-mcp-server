@@ -74,8 +74,12 @@ Feeds (pass one or more in `feed`):
 
 keyword (optional): words to look for in each item's title and summary. Matching is \
 case-insensitive and on whole words; generic words such as "news", "war", "latest" or \
-"the" are ignored. A multi-word keyword matches items containing ANY of its words, and \
-items matching the most words come first (ties: newest first). Without a keyword, or \
+"the" are ignored. An item is returned only if it contains EVERY word of the keyword. \
+Country names also match their short and adjective forms (e.g. "UK" matches \
+"Britain"/"British", "Iran" matches "Iranian"), and some abbreviations are expanded \
+("Indo-Pak" needs India and Pakistan, "DPRK" needs North and Korea, "HK" needs Hong \
+and Kong). Results are newest first. Use only the essential words: each extra word \
+narrows the results. Without a keyword, or \
 if it contains only generic words, nothing is filtered and items are newest first.
 
 limit: maximum number of items to return across all feeds. Default 5, maximum 10.
@@ -114,7 +118,7 @@ def get_feeds(
         str | None,
         Field(
             description="Optional words to match in item titles and summaries (case-insensitive, "
-            "whole words, ANY word matches; generic words like 'news' or 'war' are ignored). "
+            "whole words; an item must match EVERY word, and country adjectives like 'Iranian' count; generic words like 'news' or 'war' are ignored). "
             "Omit to return all items, newest first.",
         ),
     ] = None,

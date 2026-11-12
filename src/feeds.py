@@ -23,7 +23,7 @@ REQUEST_TIMEOUT = 10.0
 SUMMARY_MAX_CHARS = 300
 
 _TAG_RE = re.compile(r"<[^>]+>")
-_ZERO_WIDTH_RE = re.compile("[\u200b-\u200d\ufeff]")  # zero-width space/non-joiner/joiner, BOM
+_ZERO_WIDTH_RE = re.compile("[\u200b-\u200d\u2060\ufeff\u00ad]")  # zero-width space/non-joiner/joiner, word joiner, BOM, soft hyphen
 _WHITESPACE_RE = re.compile(r"\s+")
 # Tags are replaced with spaces, so "<b>Geneva</b>." becomes "Geneva ."; rejoin the punctuation.
 _SPACE_BEFORE_PUNCT_RE = re.compile(r"\s+([.,;:!?])")
@@ -41,6 +41,43 @@ STOP_WORDS = {
     "it", "its", "this", "that", "these", "those", "he", "she", "they", "we", "you",
     "his", "her", "their", "our", "your", "what", "which", "when", "where", "how", "why",
     "all", "any", "some", "more", "most", "very", "than", "then", "there", "here",
+}
+
+# Words that count as the same place: a country's name, short forms and adjective
+# forms. A keyword word found in any of these sets matches every word in that set,
+# so "Iran" matches "Iranian(s)" and "UK" matches "Britain". Only countries that
+# actually appear in the feeds are listed.
+EQUIVALENT_WORDS: list[set[str]] = [
+    {"us", "usa", "america", "american", "americans"},
+    {"uk", "britain", "british"},
+    {"uae", "emirates"},
+    {"saudi", "ksa", "arabia"},  # "arabia" so "Saudi Arabia" is one group, not two
+    {"iran", "iranian", "iranians"},
+    {"israel", "israeli", "israelis"},
+    {"india", "indian", "indians"},
+    {"pakistan", "pakistani", "pakistanis"},
+    {"china", "chinese"},
+    {"russia", "russian", "russians"},
+    {"ukraine", "ukrainian", "ukrainians"},
+    {"syria", "syrian", "syrians"},
+    {"yemen", "yemeni"},
+    {"korea", "korean", "koreans"},
+]
+_EQUIVALENTS: dict[str, frozenset[str]] = {w: frozenset(group) for group in EQUIVALENT_WORDS for w in group}
+
+# Keyword words that stand for other words. Each entry is a list of groups that
+# must ALL be found; within a group, any word will do (after EQUIVALENT_WORDS is
+# applied). Multi-word names are split into separate groups because item text is
+# tokenized into single words: "hk" requires both "hong" and "kong".
+KEYWORD_ALIASES: dict[str, list[set[str]]] = {
+    "indo": [{"india"}],
+    "pak": [{"pakistan"}],
+    "indopak": [{"india"}, {"pakistan"}],
+    "prc": [{"china"}],
+    "dprk": [{"north"}, {"korea"}],  # both, so South Korea stories don't match
+    "hk": [{"hong"}, {"kong"}],
+    "sg": [{"singapore"}],
+    "ph": [{"philippines"}],
 }
 
 FeedName = Literal["bbc_world", "hindu_international", "hindu_national"]
@@ -131,19 +168,41 @@ def _tokens(text: str) -> list[str]:
     return [word for word in re.findall(r"\w+", cleaned) if word not in STOP_WORDS and len(word) >= 2]
 
 
-def _keyword_terms(keyword: str | None) -> list[str]:
+def _expand(words: set[str]) -> frozenset[str]:
+    '''Add every equivalent word (see EQUIVALENT_WORDS) to a group.'''
+    return frozenset().union(*(_EQUIVALENTS.get(w, {w}) for w in words))
+
+
+def _keyword_terms(keyword: str | None) -> list[frozenset[str]]:
     '''
-    Match terms for a user keyword: _tokens(keyword) with duplicates removed, order kept.
-    Returns [] for None or an empty/stop-word-only keyword (meaning: no filtering).
+    Turn a user keyword into match groups. An item matches when it contains at least
+    one word from every group.
+
+    Each token from _tokens(keyword) becomes the groups in KEYWORD_ALIASES, or a
+    single-word group if it has no alias; each group is then widened with
+    EQUIVALENT_WORDS. Duplicate groups are removed, order kept. Returns [] for None
+    or an empty/stop-word-only keyword (meaning: no filtering).
 
     Args:
         keyword: The user's search keyword, or None.
     Returns:
-        Deduplicated terms from _tokens, in first-seen order; [] if there are none.
+        Match groups in first-seen order; [] if there are none.
     '''
     if not keyword:
         return []
-    return list(dict.fromkeys(_tokens(keyword)))
+    groups: list[frozenset[str]] = []
+    for token in _tokens(keyword):
+        for group in KEYWORD_ALIASES.get(token, [{token}]):
+            expanded = _expand(group)
+            if expanded not in groups:
+                groups.append(expanded)
+    return groups
+
+
+def _matches_all(groups: list[frozenset[str]], text: str) -> bool:
+    '''True if text contains at least one word from every group.'''
+    tokens = set(_tokens(text))
+    return all(group & tokens for group in groups)
 
 
 def _truncate(text: str, max_chars: int = SUMMARY_MAX_CHARS) -> str:
@@ -240,10 +299,9 @@ def fetch_feeds(feeds: list[FeedName], keyword: str | None = None, limit: int = 
     Fetch each feed independently, rank items by keyword relevance and return
     at most `limit` items with truncated summaries.
 
-    The keyword is split into terms (see _keyword_terms). Each item scores one
-    point per term found in its title or summary. Items with no matches are
-    dropped, and the rest are sorted by score, then newest first (undated items
-    last). If the keyword is missing or contains only stop words, every item is
+    The keyword is turned into match groups (see _keyword_terms). An item is kept
+    only if its title or summary contains at least one word from every group.
+    Results are sorted newest first (undated items last). If the keyword is missing or contains only stop words, every item is
     kept, newest first. A failing feed is reported in failed_feeds instead of
     stopping the others.
     '''
@@ -274,27 +332,13 @@ def fetch_feeds(feeds: list[FeedName], keyword: str | None = None, limit: int = 
                 logger.exception("Unexpected error processing feed %s (%s)", feed_name, url)
                 failed.append(FeedError(feed=feed_name, reason=reason, detail=detail))
 
-    terms = _keyword_terms(keyword)
-    scored_items = []
+    groups = _keyword_terms(keyword)
+    if groups:
+        items = [item for item in items if _matches_all(groups, f"{item.title} {item.summary}")]
 
-    if terms:
-        for item in items:
-            item_tokens = set(_tokens(f"{item.title} {item.summary}"))
-            score = sum(t in item_tokens for t in terms)
-            if score >= 1:
-                scored_items.append((score, item))
-    else:
-        # Keep all items with a neutral score of 0 if no valid terms exist
-        scored_items = [(0, item) for item in items]
-
-    scored_items.sort(
-        key=lambda pair: (
-            -pair[0],
-            -pair[1].published_utc.timestamp() if pair[1].published_utc is not None else float("inf"),
-        )
-    )
+    items.sort(key=lambda item: -item.published_utc.timestamp() if item.published_utc is not None else float("inf"))
 
     # Truncate only after ranking, and only the items actually returned.
-    results = [item.model_copy(update={"summary": _truncate(item.summary)}) for _, item in scored_items[:limit]]
+    results = [item.model_copy(update={"summary": _truncate(item.summary)}) for item in items[:limit]]
 
     return FeedResult(items=results, failed_feeds=failed)
