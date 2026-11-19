@@ -29,7 +29,7 @@ Fetches the latest headlines from one or more feeds.
 | Parameter | Type             | Default | Description                                               |
 | --------- | ---------------- | ------- | --------------------------------------------------------- |
 | `feed`    | `list[FeedName]` | n/a     | One or more feed names (at least one is required).        |
-| `keyword` | `str \| null`    | `null`  | Words matched against title and summary (case-insensitive, whole words, generic words like "news"/"war"/"the" ignored). Items matching more words rank first, then newest. |
+| `keyword` | `str \| null`    | `null`  | Words matched against title and summary (case-insensitive, whole words, generic words like "news"/"war"/"the" ignored). An item must contain every word; country names also match short and adjective forms ("UK" ↔ "Britain", "Iran" ↔ "Iranian"). Newest first. |
 | `limit`   | `int` (1–10)     | `5`     | Maximum number of items to return across all feeds.       |
 
 ### Response
@@ -55,7 +55,7 @@ Fetches the latest headlines from one or more feeds.
 }
 ```
 
-Items are sorted by the number of keyword words they match (most first), then newest first. Items with no publish date are placed last within each group.
+Each keyword word becomes a match group, and an item is returned only if its title or summary contains at least one word from every group. A country name's group includes its short and adjective forms (`EQUIVALENT_WORDS` in `src/feeds.py`, e.g. `{"uk", "britain", "british"}`), and abbreviations expand to one or more groups (`KEYWORD_ALIASES`, e.g. `indopak` → India and Pakistan, `dprk` → North and Korea, `hk` → Hong and Kong). Matching items are sorted newest first; items with no publish date come last.
 
 `published_utc` is the timestamp the feed reports, converted to UTC. Some sources (BBC and The Hindu among them) move it forward when they edit a story, so it can be the time of the last update rather than the original publish time.
 

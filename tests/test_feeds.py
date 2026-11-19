@@ -11,7 +11,7 @@ import feedparser
 import httpx
 import pytest
 
-from feeds import FeedError, FeedURLs, _keyword_terms, fetch_feeds
+from feeds import FeedError, FeedURLs, _clean_text, _keyword_terms, _tokens, fetch_feeds
 from tests.conftest import load_fixture, rss_response
 
 ALL_FEEDS = ["bbc_world", "hindu_international", "hindu_national"]
@@ -375,16 +375,27 @@ def test_harmless_encoding_warning_is_not_flagged(mock_http):
 
 # --- keyword terms and relevance ranking ------------------------------------
 
+US_GROUP = {"us", "usa", "america", "american", "americans"}
+IRAN_GROUP = {"iran", "iranian", "iranians"}
+
+
 @pytest.mark.parametrize(
     ("keyword", "expected"),
     [
-        ("Russia Ukraine war", ["russia", "ukraine"]),
-        ("U.S. Iran", ["us", "iran"]),
-        ("US Iran", ["us", "iran"]),
+        ("Russia Ukraine war", [{"russia", "russian", "russians"}, {"ukraine", "ukrainian", "ukrainians"}]),
+        ("U.S. Iran", [US_GROUP, IRAN_GROUP]),
+        ("US Iran", [US_GROUP, IRAN_GROUP]),
         ("latest news", []),
         (None, []),
-        ("Iran's war with US", ["iran", "us"]),
-        ("WHO", ["who"]),  # World Health Organization, not the pronoun
+        ("Iran's war with US", [IRAN_GROUP, US_GROUP]),
+        ("WHO", [{"who"}]),  # World Health Organization, not the pronoun
+        ("Indo-Pak", [{"india", "indian", "indians"}, {"pakistan", "pakistani", "pakistanis"}]),
+        ("IndoPak", [{"india", "indian", "indians"}, {"pakistan", "pakistani", "pakistanis"}]),
+        ("UK", [{"uk", "britain", "british"}]),
+        ("HK", [{"hong"}, {"kong"}]),
+        ("DPRK", [{"north"}, {"korea", "korean", "koreans"}]),
+        ("Iran Iranian", [IRAN_GROUP]),  # equivalent words collapse into one group
+        ("Saudi Arabia", [{"saudi", "ksa", "arabia"}]),
     ],
 )
 def test_keyword_terms(keyword, expected):
@@ -408,12 +419,12 @@ def test_us_matches_dotted_us_and_not_unrelated_titles(mock_http):
     assert [i.title for i in result.items] == ["U.S. military action in the Gulf"]
 
 
-def test_item_matching_more_terms_ranks_above_newer_single_match(mock_http):
+def test_partial_matches_excluded_when_an_item_matches_all_terms(mock_http):
     mock_http.get(FeedURLs["bbc_world"]).mock(
         return_value=rss_response(
             rss(
-                "<item><title>Iran holds drills</title><link>https://example.com/new</link>"
-                "<description>Navy exercises.</description>"
+                "<item><title>IBM ends U.S. visa sponsorship</title><link>https://example.com/new</link>"
+                "<description>Policy change.</description>"
                 "<pubDate>Tue, 10 Nov 2026 12:00:00 GMT</pubDate></item>",
                 "<item><title>US and Iran resume talks</title><link>https://example.com/old</link>"
                 "<description>Envoys meet.</description>"
@@ -424,7 +435,72 @@ def test_item_matching_more_terms_ranks_above_newer_single_match(mock_http):
 
     result = fetch_feeds(["bbc_world"], keyword="US Iran")
 
-    assert [i.title for i in result.items] == ["US and Iran resume talks", "Iran holds drills"]
+    assert [i.title for i in result.items] == ["US and Iran resume talks"]
+
+
+def _titles_matching(mock_http, keyword, *titles):
+    """Serve one BBC item per title (newest first) and return the titles that match keyword."""
+    items = [
+        f"<item><title>{t}</title><link>https://example.com/{n}</link><description>Details.</description>"
+        f"<pubDate>Tue, 10 Nov 2026 {12 - n:02d}:00:00 GMT</pubDate></item>"
+        for n, t in enumerate(titles)
+    ]
+    mock_http.get(FeedURLs["bbc_world"]).mock(return_value=rss_response(rss(*items)))
+    return [i.title for i in fetch_feeds(["bbc_world"], keyword=keyword, limit=10).items]
+
+
+def test_every_keyword_word_is_required_and_results_are_newest_first(mock_http):
+    assert _titles_matching(
+        mock_http,
+        "Russia Ukraine",
+        "Russia and Ukraine swap prisoners",
+        "Russia hosts summit",
+        "Ukrainian drones hit Russian refinery",
+    ) == ["Russia and Ukraine swap prisoners", "Ukrainian drones hit Russian refinery"]
+
+
+def test_no_fallback_when_nothing_matches_every_word(mock_http):
+    assert _titles_matching(mock_http, "US Iran Israel", "US and Iran resume talks", "Iran holds drills") == []
+
+
+def test_indo_pak_requires_both_countries(mock_http):
+    assert _titles_matching(
+        mock_http,
+        "Indo-Pak",
+        "India and Pakistan agree to talks",
+        "India hosts summit",
+        "Pakistani PM visits Beijing",
+    ) == ["India and Pakistan agree to talks"]
+
+
+def test_uk_alias_matches_britain(mock_http):
+    assert _titles_matching(
+        mock_http, "UK Iran", "Britain summons envoy over Iran detentions", "Iran holds drills"
+    ) == ["Britain summons envoy over Iran detentions"]
+
+
+def test_country_adjective_matches_country_name(mock_http):
+    assert _titles_matching(
+        mock_http, "UK Iran", "Britain summons Iranian envoy", "Pakistan election"
+    ) == ["Britain summons Iranian envoy"]
+
+
+def test_hk_requires_hong_and_kong(mock_http):
+    assert _titles_matching(
+        mock_http, "HK", "Hong Kong court jails activists", "Hong Lim Park rally"
+    ) == ["Hong Kong court jails activists"]
+
+
+def test_dprk_does_not_match_south_korea(mock_http):
+    assert _titles_matching(
+        mock_http, "DPRK", "South Korea holds election", "North Korean troops seen at border"
+    ) == ["North Korean troops seen at border"]
+
+
+def test_clean_text_removes_word_joiner_and_soft_hyphen():
+    assert _clean_text("the U.S.⁠ must meet seven con­ditions") == "the U.S. must meet seven conditions"
+    assert _clean_text("Judge⁠ Lindsay Griffin") == "Judge Lindsay Griffin"
+    assert _tokens("U.S.⁠") == ["us"]
 
 
 def test_default_limit_is_five(mock_http):
