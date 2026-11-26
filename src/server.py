@@ -8,14 +8,13 @@ from typing import Annotated
 from fastmcp import FastMCP
 from pydantic import Field
 
-from feeds import FeedName, FeedResult, fetch_feeds
+from feeds import FEEDS, FeedName, FeedResult, fetch_feeds
 
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
 from starlette.middleware import Middleware
 from starlette.middleware.base import BaseHTTPMiddleware
-
 
 
 def _parse_secret(secret: str) -> str:
@@ -63,14 +62,14 @@ mcp = FastMCP(
     instructions="A tool to fetch the latest geopolitical news headlines from listed sources.",
 )
 
+_FEED_LIST = "\n".join(f"- {name}: {feed.about}" for name, feed in FEEDS.items())
 
-GET_FEEDS_DESCRIPTION = """\
+
+GET_FEEDS_DESCRIPTION = f"""\
 Fetch the latest news headlines from one or more feeds.
 
 Feeds (pass one or more in `feed`):
-- bbc_world: BBC News, world headlines.
-- hindu_international: The Hindu, international news.
-- hindu_national: The Hindu, Indian national news.
+{_FEED_LIST}
 
 keyword (optional): words to look for in each item's title and summary. Matching is \
 case-insensitive and on whole words; generic words such as "news", "war", "latest" or \
@@ -78,7 +77,7 @@ case-insensitive and on whole words; generic words such as "news", "war", "lates
 Country names also match their short and adjective forms (e.g. "UK" matches \
 "Britain"/"British", "Iran" matches "Iranian"), and some abbreviations are expanded \
 ("Indo-Pak" needs India and Pakistan, "DPRK" needs North and Korea, "HK" needs Hong \
-and Kong). Results are newest first. Use only the essential words: each extra word \
+and Kong). Use only the essential words: each extra word \
 narrows the results. Without a keyword, or \
 if it contains only generic words, nothing is filtered and items are newest first.
 
@@ -102,16 +101,18 @@ missing. Present them as possibly incomplete (e.g. "BBC results may be incomplet
 An empty items list with no failed_feeds means there is no matching news right now. \
 It is not an error; say so rather than retrying or reporting a failure.
 """
-
+FEED_PARAM_DESCRIPTION = "One or more feeds to fetch. " + " ".join(
+    f"{name}: {feed.about}" for name, feed in FEEDS.items()
+)
 
 @mcp.tool(description=GET_FEEDS_DESCRIPTION)
 def get_feeds(
     feed: Annotated[
-        list[FeedName],
+        list[FeedName], # type: ignore[valid-type]
         Field(
             min_length=1,
-            description="One or more feeds to fetch: bbc_world (BBC world news), "
-            "hindu_international (The Hindu, international), hindu_national (The Hindu, Indian national).",
+            max_length=len(FEEDS),
+            description=FEED_PARAM_DESCRIPTION,
         ),
     ],
     keyword: Annotated[

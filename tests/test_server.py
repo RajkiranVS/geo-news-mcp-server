@@ -149,3 +149,12 @@ def test_limit_ten_is_accepted(client, mock_http):
     result = resp.json()["result"]
     assert result["isError"] is False
     assert len(result["structuredContent"]["items"]) == 10
+
+
+def test_every_feed_is_described_to_the_agent(client):
+    server = sys.modules["server"]
+    from feeds import FEEDS
+
+    for name, feed in FEEDS.items():
+        assert feed.about in server.GET_FEEDS_DESCRIPTION
+        assert feed.about in server.FEED_PARAM_DESCRIPTION

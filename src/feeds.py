@@ -8,6 +8,7 @@ import logging
 import re
 import unicodedata
 import xml.sax
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Literal
 from urllib.parse import urlsplit, urlunsplit
@@ -62,6 +63,14 @@ EQUIVALENT_WORDS: list[set[str]] = [
     {"syria", "syrian", "syrians"},
     {"yemen", "yemeni"},
     {"korea", "korean", "koreans"},
+    {"palestine", "palestinian", "palestinians"},
+    {"sudan", "sudanese"},
+    {"lebanon", "lebanese"},
+    {"egypt", "egyptian", "egyptians"},
+    {"iraq", "iraqi", "iraqis"},
+    {"qatar", "qatari", "qataris"},
+    {"afghanistan", "afghan", "afghans"},
+    {"turkey", "turkish", "turkiye", "türkiye"},
 ]
 _EQUIVALENTS: dict[str, frozenset[str]] = {w: frozenset(group) for group in EQUIVALENT_WORDS for w in group}
 
@@ -80,19 +89,31 @@ KEYWORD_ALIASES: dict[str, list[set[str]]] = {
     "ph": [{"philippines"}],
 }
 
-FeedName = Literal["bbc_world", "hindu_international", "hindu_national"]
-FeedURLs: dict[FeedName, str] = {
-    "bbc_world": "https://feeds.bbci.co.uk/news/world/rss.xml",
-    "hindu_international": "https://www.thehindu.com/news/international/feeder/default.rss",
-    "hindu_national": "https://www.thehindu.com/news/national/feeder/default.rss",
+# Processing Feeds
+@dataclass(frozen=True)
+class Feed:
+    url: str
+    about: str
+
+FEEDS: dict[str, Feed] = {
+    "bbc_world": Feed(url="https://feeds.bbci.co.uk/news/world/rss.xml",
+                      about="World news from a UK-based outlet."),
+    "hindu_international": Feed(url="https://www.thehindu.com/news/international/feeder/default.rss",
+                               about="International news from an Indian outlet, often with an Indian perspective."),
+    "hindu_national": Feed(url="https://www.thehindu.com/news/national/feeder/default.rss",
+                              about="Indian domestic news: national politics, states, courts and the economy."),
+    "aljazeera_all": Feed(url="https://www.aljazeera.com/xml/rss/all.xml",
+                                about="World news from a Qatar-based outlet, with in-depth "
+                                "coverage of the Middle East, Africa and the Global South."),
 }
+FeedName = Literal[tuple(FEEDS)] # type: ignore[valid-type]
 
 
 class FeedItem(BaseModel):
     '''
     A model representing a feed item.
     '''
-    source: FeedName
+    source: FeedName # type: ignore[valid-type]
     title: str
     link: str
     published_utc: datetime | None
@@ -220,7 +241,7 @@ def _strip_query(url: str) -> str:
     '''
     Remove the whole query string (e.g. tracking parameters) from a URL.
 
-    Safe for the current sources (BBC, The Hindu): their article URLs are
+    Safe for the current sources (BBC, The Hindu, Al Jazeera): their article URLs are
     path-based and the query string only carries tracking parameters.
     If you add a feed whose article identity lives in the query (e.g. "?id=123"),
     this would break its links: change it to drop only known tracking
@@ -233,7 +254,7 @@ def _strip_query(url: str) -> str:
 INCOMPLETE_FEED_DETAIL = "The source's feed was incomplete; some items may be missing."
 
 
-def _fetch_one(client: httpx.Client, feed_name: FeedName, url: str) -> tuple[list[FeedItem], bool]:
+def _fetch_one(client: httpx.Client, feed_name: FeedName, url: str) -> tuple[list[FeedItem], bool]: # type: ignore[valid-type]
     '''
     Fetch and parse a single feed. Returns (items, incomplete).
     Raises httpx.HTTPError or MalformedFeedError.
@@ -268,11 +289,14 @@ def _fetch_one(client: httpx.Client, feed_name: FeedName, url: str) -> tuple[lis
     items: list[FeedItem] = []
     for entry in parsed_feed.entries:
         published_dt = entry.get("published_parsed")
+        link = _strip_query(entry.get("link", ""))
+        if not link:
+            continue
         items.append(
             FeedItem(
                 source=feed_name,
                 title=_clean_text(entry.get("title", "")),
-                link=_strip_query(entry.get("link", "")),
+                link=link,
                 published_utc=datetime(*published_dt[:6], tzinfo=timezone.utc) if published_dt else None,
                 summary=_clean_text(entry.get("summary", "")),
             )
@@ -294,10 +318,10 @@ def _describe_failure(exc: Exception) -> tuple[str, str]:
     return "unknown_error", "An unexpected error occurred while processing the source."
 
 
-def fetch_feeds(feeds: list[FeedName], keyword: str | None = None, limit: int = 5) -> FeedResult:
+def fetch_feeds(feeds: list[FeedName], keyword: str | None = None, limit: int = 5) -> FeedResult: # type: ignore[valid-type]
     '''
-    Fetch each feed independently, rank items by keyword relevance and return
-    at most `limit` items with truncated summaries.
+    Fetch each feed independently, keep items that match the keyword, sort newest
+    first and return at most `limit` items with truncated summaries.
 
     The keyword is turned into match groups (see _keyword_terms). An item is kept
     only if its title or summary contains at least one word from every group.
@@ -314,7 +338,7 @@ def fetch_feeds(feeds: list[FeedName], keyword: str | None = None, limit: int = 
         headers={"User-Agent": USER_AGENT},
     ) as client:
         for feed_name in dict.fromkeys(feeds):
-            url = FeedURLs[feed_name]
+            url = FEEDS[feed_name].url # type: ignore[valid-type]
             try:
                 feed_items, incomplete = _fetch_one(client, feed_name, url)
                 items.extend(feed_items)
@@ -338,7 +362,7 @@ def fetch_feeds(feeds: list[FeedName], keyword: str | None = None, limit: int = 
 
     items.sort(key=lambda item: -item.published_utc.timestamp() if item.published_utc is not None else float("inf"))
 
-    # Truncate only after ranking, and only the items actually returned.
+    # Truncate only after sorting, and only the items actually returned.
     results = [item.model_copy(update={"summary": _truncate(item.summary)}) for item in items[:limit]]
 
     return FeedResult(items=results, failed_feeds=failed)

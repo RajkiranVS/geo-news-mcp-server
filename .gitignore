@@ -7,3 +7,4 @@ __pycache__/
 samconfig.toml
 .venv/
 .env
+body.json

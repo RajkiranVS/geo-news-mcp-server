@@ -1,0 +1,8 @@
+id,model,condition,question,keyword,feeds,items,item_source,note
+sudan-foundry-baseline,gpt-5.6-luna,baseline,What is happening in Sudan?,Sudan,bbc_world hindu_international,0,,"Two calls (Sudan, then no keyword). Answer: no matching Sudan headlines."
+sudan-foundry-schema,gpt-5.6-luna,schema_only,What is happening in Sudan?,Sudan,bbc_world aljazeera_all hindu_international,1,aljazeera_all,War and drought threaten livelihoods of Sudan's farmers.
+sudan-gemini-baseline,gemini-3.8-flash,baseline,What is happening in Sudan?,Sudan,bbc_world hindu_international,0,,"Two calls (Sudan, then Africa). Answer: no matching headlines."
+sudan-gemini-schema,gemini-3.8-flash,schema_only,What is happening in Sudan?,Sudan,bbc_world hindu_international aljazeera_all,1,aljazeera_all,Answered from Al Jazeera on the first call.
+sc-foundry-schema,gpt-5.6-luna,schema_only,What did India's Supreme Court rule recently?,India Supreme Court,hindu_national bbc_world hindu_international,1,hindu_international,Only match: a US tariffs story whose summary mentions India and the US Supreme Court. failed_feeds empty.
+sc-gemini-baseline,gemini-3.8-flash,baseline,What did India's Supreme Court rule recently?,Supreme Court,bbc_world hindu_international hindu_national,3,hindu_national,"Three Indian Supreme Court stories: FSSAI labelling, Thirupparankundram, protests plea."
+invented-feed-qwen,Qwen2.5-3B,schema_format,What's going on in the Sahel?,sahel,reuters_africa aljazeera_all,0,,Rejected by the schema (literal_error). Valid aljazeera_all was not fetched either; no retry.
