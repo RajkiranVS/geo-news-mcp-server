@@ -101,7 +101,7 @@ missing. Present them as possibly incomplete (e.g. "BBC results may be incomplet
 An empty items list with no failed_feeds means there is no matching news right now. \
 It is not an error; say so rather than retrying or reporting a failure.
 """
-FEED_PARAM_DESCRIPTION = "One or more feeds to fetch. " + "; ".join(
+FEED_PARAM_DESCRIPTION = "One or more feeds to fetch. " + " ".join(
     f"{name}: {feed.about}" for name, feed in FEEDS.items()
 )
 
