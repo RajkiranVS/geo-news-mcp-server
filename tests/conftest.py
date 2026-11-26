@@ -8,7 +8,7 @@ import httpx
 import pytest
 import respx
 
-from feeds import FeedURLs
+from feeds import FEEDS
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -31,6 +31,6 @@ def mock_http():
     suite cannot touch the network. Tests can override a route via mock_http.get(url).
     '''
     with respx.mock(assert_all_called=False) as router:
-        for feed_name, url in FeedURLs.items():
-            router.get(url).mock(return_value=rss_response(load_fixture(feed_name)))
+        for feed_name, feed in FEEDS.items():
+            router.get(feed.url).mock(return_value=rss_response(load_fixture(feed_name)))
         yield router

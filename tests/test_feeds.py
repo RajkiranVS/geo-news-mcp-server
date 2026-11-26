@@ -6,15 +6,16 @@ Real-feed behaviour uses the saved responses in tests/fixtures/ (captured
 undated items) use small inline RSS documents.
 '''
 from datetime import datetime, timezone
+from typing import get_args
 
 import feedparser
 import httpx
 import pytest
 
-from feeds import FeedError, FeedURLs, _clean_text, _keyword_terms, _tokens, fetch_feeds
+from feeds import FeedError, FEEDS, FeedName, _clean_text, _keyword_terms, _tokens, fetch_feeds
 from tests.conftest import load_fixture, rss_response
 
-ALL_FEEDS = ["bbc_world", "hindu_international", "hindu_national"]
+ALL_FEEDS = ["bbc_world", "hindu_international", "hindu_national", "aljazeera_all"]
 
 
 def rss(*items: str) -> str:
@@ -32,9 +33,63 @@ def test_fixtures_parse_into_items(mock_http):
 
     assert result.failed_feeds == []
     counts = {name: sum(i.source == name for i in result.items) for name in ALL_FEEDS}
-    assert counts == {"bbc_world": 33, "hindu_international": 60, "hindu_national": 60}
-    # BBC links carry ?at_medium=RSS&at_campaign=rss tracking params, which must be dropped.
+    assert counts == {"bbc_world": 33, "hindu_international": 60, "hindu_national": 60, "aljazeera_all": 25}
+    # BBC links carry ?at_medium=RSS&at_campaign=rss and Al Jazeera's ?traffic_source=rss;
+    # both tracking query strings must be dropped.
     assert all("?" not in i.link for i in result.items)
+
+
+# --- Al Jazeera -------------------------------------------------------------
+
+AJ_FIRST_LINK = "https://www.aljazeera.com/news/2026/11/26/puerto-ricos-supreme-court-cancels-major-power-contract"
+
+
+def test_aljazeera_item_is_parsed_and_cleaned(mock_http):
+    '''
+    Al Jazeera double-escapes apostrophes inside CDATA ("&#039;"), which feedparser
+    leaves alone and _clean_text must decode. Links end in "?traffic_source=rss".
+    '''
+    assert b"court&#039;s" in load_fixture("aljazeera_all")  # guard: the quirk is really in the fixture
+
+    result = fetch_feeds(["aljazeera_all"], limit=1000)
+
+    assert result.failed_feeds == []
+    assert len(result.items) == 25
+    first = result.items[0]
+    assert first.source == "aljazeera_all"
+    assert first.link == AJ_FIRST_LINK
+    assert first.title == "Puerto Rico’s Supreme Court cancels major power contract"
+    assert first.summary == (
+        "The court's five-to-four ruling ends Luma Energy's operations after a contentious legal battle."
+    )
+    assert first.published_utc == datetime(2026, 11, 26, 5, 9, 55, tzinfo=timezone.utc)
+    assert all("&#" not in i.title + i.summary for i in result.items)
+
+
+@pytest.mark.parametrize(
+    ("keyword", "expected_title"),
+    [
+        ("DPRK", "Kim Jong Un says North Korea should widen deployment of tactical nukes"),
+        ("Ukraine Russia", "Ukraine attacks Russian military base, says five planes struck"),
+        ("Gaza", "Winter rains threaten 1,000 Gaza shelter sites, councils warn"),
+    ],
+)
+def test_aljazeera_keyword_matches(mock_http, keyword, expected_title):
+    titles = [i.title for i in fetch_feeds(["aljazeera_all"], keyword=keyword, limit=10).items]
+
+    assert expected_title in titles
+
+
+def test_aljazeera_failure_does_not_block_other_feeds(mock_http):
+    mock_http.get(FEEDS["aljazeera_all"].url).mock(return_value=httpx.Response(403, text="Forbidden"))
+
+    result = fetch_feeds(["aljazeera_all", "bbc_world"], limit=1000)
+
+    assert result.failed_feeds == [
+        FeedError(feed="aljazeera_all", reason="http_403", detail="The source returned HTTP 403.")
+    ]
+    assert len(result.items) == 33
+    assert {i.source for i in result.items} == {"bbc_world"}
 
 
 # --- keyword filter ---------------------------------------------------------
@@ -54,7 +109,7 @@ def test_keyword_filter_is_case_insensitive_and_spans_feeds(mock_http):
 
 def test_keyword_matches_summary_only(mock_http):
     '''A match in the summary counts even when the title doesn't contain the keyword.'''
-    mock_http.get(FeedURLs["bbc_world"]).mock(
+    mock_http.get(FEEDS["bbc_world"].url).mock(
         return_value=rss_response(
             rss(
                 "<item><title>Talks resume</title><link>https://example.com/a</link>"
@@ -81,17 +136,21 @@ def test_keyword_with_no_matches_returns_empty_without_errors(mock_http):
 
 def test_items_sorted_newest_first_across_feeds_and_timezones(mock_http):
     '''
-    BBC dates are GMT, The Hindu's are +0530. Sorting must compare them in UTC:
-    the newest item overall is The Hindu's 12:36:10 +0530 (07:06:10 UTC), which
-    beats BBC's newest at 03:58:13 GMT.
+    BBC dates are GMT, The Hindu's are +0530, Al Jazeera's +0000. Sorting must
+    compare them in UTC. Al Jazeera's fixture was captured later, so its newest
+    item is the newest overall. Among the other feeds, The Hindu's 12:36:10 +0530
+    (07:06:10 UTC) beats BBC's newest at 03:58:13 GMT.
     '''
     result = fetch_feeds(ALL_FEEDS, limit=1000)
 
-    dates = [i.published_utc for i in result.items]
-    assert None not in dates
+    assert all(i.published_utc is not None for i in result.items)
+    dates = [i.published_utc for i in result.items if i.published_utc is not None]
     assert dates == sorted(dates, reverse=True)
 
-    newest = result.items[0]
+    assert result.items[0].source == "aljazeera_all"
+    assert result.items[0].published_utc == datetime(2026, 11, 26, 5, 9, 55, tzinfo=timezone.utc)
+
+    newest = next(i for i in result.items if i.source != "aljazeera_all")
     assert newest.source == "hindu_international"
     assert newest.title.startswith("Bill in U.S. Congress to recognise Deepavali")
     assert newest.published_utc == datetime(2026, 11, 10, 7, 6, 10, tzinfo=timezone.utc)
@@ -127,7 +186,7 @@ def test_html_is_stripped_from_title_and_summary(mock_http):
         "<pubDate>Tue, 10 Nov 2026 03:00:00 GMT</pubDate>"
         "</item>"
     )
-    mock_http.get(FeedURLs["bbc_world"]).mock(return_value=rss_response(rss(item)))
+    mock_http.get(FEEDS["bbc_world"].url).mock(return_value=rss_response(rss(item)))
 
     [result] = fetch_feeds(["bbc_world"]).items
 
@@ -139,7 +198,7 @@ def test_html_is_stripped_from_title_and_summary(mock_http):
 
 def test_long_summary_is_truncated_at_word_boundary(mock_http):
     words = " ".join(f"word{n}" for n in range(200))
-    mock_http.get(FeedURLs["bbc_world"]).mock(
+    mock_http.get(FEEDS["bbc_world"].url).mock(
         return_value=rss_response(
             rss(f"<item><title>Long</title><link>https://example.com/l</link><description>{words}</description></item>")
         )
@@ -155,7 +214,7 @@ def test_long_summary_is_truncated_at_word_boundary(mock_http):
 # --- missing date -----------------------------------------------------------
 
 def test_missing_date_gives_none_and_sorts_last(mock_http):
-    mock_http.get(FeedURLs["bbc_world"]).mock(
+    mock_http.get(FEEDS["bbc_world"].url).mock(
         return_value=rss_response(
             rss(
                 "<item><title>Undated</title><link>https://example.com/u</link><description>x</description></item>",
@@ -180,7 +239,7 @@ def test_missing_date_gives_none_and_sorts_last(mock_http):
 # --- timeout ----------------------------------------------------------------
 
 def test_timeout_is_reported_and_other_feeds_still_return(mock_http):
-    mock_http.get(FeedURLs["bbc_world"]).mock(side_effect=httpx.ReadTimeout("timed out"))
+    mock_http.get(FEEDS["bbc_world"].url).mock(side_effect=httpx.ReadTimeout("timed out"))
 
     result = fetch_feeds(["bbc_world", "hindu_international"], limit=1000)
 
@@ -192,7 +251,7 @@ def test_timeout_is_reported_and_other_feeds_still_return(mock_http):
 
 
 def test_connect_timeout_is_also_a_timeout(mock_http):
-    mock_http.get(FeedURLs["hindu_national"]).mock(side_effect=httpx.ConnectTimeout("connect timed out"))
+    mock_http.get(FEEDS["hindu_national"].url).mock(side_effect=httpx.ConnectTimeout("connect timed out"))
 
     result = fetch_feeds(["hindu_national"])
 
@@ -203,7 +262,7 @@ def test_connect_timeout_is_also_a_timeout(mock_http):
 # --- HTTP status ------------------------------------------------------------
 
 def test_http_404_is_reported_and_other_feeds_still_return(mock_http):
-    mock_http.get(FeedURLs["bbc_world"]).mock(return_value=httpx.Response(404, text="Not Found"))
+    mock_http.get(FEEDS["bbc_world"].url).mock(return_value=httpx.Response(404, text="Not Found"))
 
     result = fetch_feeds(["bbc_world", "hindu_international"], limit=1000)
 
@@ -215,7 +274,7 @@ def test_http_404_is_reported_and_other_feeds_still_return(mock_http):
 
 
 def test_http_5xx_reason_carries_the_status(mock_http):
-    mock_http.get(FeedURLs["hindu_national"]).mock(return_value=httpx.Response(503, text="Service Unavailable"))
+    mock_http.get(FEEDS["hindu_national"].url).mock(return_value=httpx.Response(503, text="Service Unavailable"))
 
     result = fetch_feeds(["hindu_national"])
 
@@ -225,7 +284,7 @@ def test_http_5xx_reason_carries_the_status(mock_http):
 
 def test_error_status_with_a_valid_feed_body_is_still_a_failure(mock_http):
     '''The status check runs before parsing, so a feed body on a 500 is not treated as news.'''
-    mock_http.get(FeedURLs["bbc_world"]).mock(
+    mock_http.get(FEEDS["bbc_world"].url).mock(
         return_value=httpx.Response(500, content=load_fixture("bbc_world"))
     )
 
@@ -238,7 +297,7 @@ def test_error_status_with_a_valid_feed_body_is_still_a_failure(mock_http):
 # --- connection error -------------------------------------------------------
 
 def test_connection_error_is_reported_and_other_feeds_still_return(mock_http):
-    mock_http.get(FeedURLs["hindu_international"]).mock(
+    mock_http.get(FEEDS["hindu_international"].url).mock(
         side_effect=httpx.ConnectError("[Errno 11001] getaddrinfo failed")
     )
 
@@ -255,7 +314,7 @@ def test_connection_error_is_reported_and_other_feeds_still_return(mock_http):
 
 def test_unexpected_exception_is_unknown_error_and_does_not_leak_details(mock_http):
     '''A non-httpx exception is caught per feed; its message stays in the server log only.'''
-    mock_http.get(FeedURLs["bbc_world"]).mock(side_effect=RuntimeError("internal detail: /var/task/secret"))
+    mock_http.get(FEEDS["bbc_world"].url).mock(side_effect=RuntimeError("internal detail: /var/task/secret"))
 
     result = fetch_feeds(["bbc_world", "hindu_national"], limit=1000)
 
@@ -275,7 +334,7 @@ def test_unexpected_exception_is_unknown_error_and_does_not_leak_details(mock_ht
 def test_malformed_xml_is_reported_and_other_feeds_still_return(mock_http):
     '''The real BBC response cut off inside the channel header, before any <item>.'''
     truncated = load_fixture("bbc_world")[:400]
-    mock_http.get(FeedURLs["bbc_world"]).mock(return_value=rss_response(truncated))
+    mock_http.get(FEEDS["bbc_world"].url).mock(return_value=rss_response(truncated))
 
     result = fetch_feeds(["bbc_world", "hindu_national"], limit=1000)
 
@@ -292,7 +351,7 @@ def test_malformed_xml_is_reported_and_other_feeds_still_return(mock_http):
 
 def test_html_error_page_with_200_is_malformed(mock_http):
     '''A 200 response that isn't a feed at all (no feedparser version) must not read as "no news".'''
-    mock_http.get(FeedURLs["bbc_world"]).mock(
+    mock_http.get(FEEDS["bbc_world"].url).mock(
         return_value=httpx.Response(
             200, content=load_fixture("html_error_page", ".html"), headers={"Content-Type": "text/html; charset=utf-8"}
         )
@@ -305,7 +364,7 @@ def test_html_error_page_with_200_is_malformed(mock_http):
 
 
 def test_garbage_body_is_malformed(mock_http):
-    mock_http.get(FeedURLs["hindu_international"]).mock(
+    mock_http.get(FEEDS["hindu_international"].url).mock(
         return_value=rss_response("<rss><channel><title>x</titl></channel></rss>")
     )
 
@@ -319,7 +378,7 @@ def test_garbage_body_is_malformed(mock_http):
 
 def test_truncated_feed_keeps_items_and_reports_incomplete(mock_http):
     '''The real BBC response cut off halfway: the 16 items before the break are kept, and flagged.'''
-    mock_http.get(FeedURLs["bbc_world"]).mock(return_value=rss_response(load_fixture("truncated_bbc")))
+    mock_http.get(FEEDS["bbc_world"].url).mock(return_value=rss_response(load_fixture("truncated_bbc")))
 
     result = fetch_feeds(["bbc_world", "hindu_national"], limit=1000)
 
@@ -337,7 +396,7 @@ def test_truncated_feed_keeps_items_and_reports_incomplete(mock_http):
 
 def test_incomplete_is_reported_even_when_keyword_filters_out_its_items(mock_http):
     '''"No matches" from a broken feed is not the same as "no matches", so the flag must survive filtering.'''
-    mock_http.get(FeedURLs["bbc_world"]).mock(return_value=rss_response(load_fixture("truncated_bbc")))
+    mock_http.get(FEEDS["bbc_world"].url).mock(return_value=rss_response(load_fixture("truncated_bbc")))
 
     result = fetch_feeds(["bbc_world"], keyword="zzz-no-such-word-zzz")
 
@@ -348,7 +407,7 @@ def test_incomplete_is_reported_even_when_keyword_filters_out_its_items(mock_htt
 # --- valid but empty / harmless bozo ----------------------------------------
 
 def test_valid_feed_with_no_items_is_no_news_not_an_error(mock_http):
-    mock_http.get(FeedURLs["bbc_world"]).mock(return_value=rss_response(load_fixture("empty_valid_feed")))
+    mock_http.get(FEEDS["bbc_world"].url).mock(return_value=rss_response(load_fixture("empty_valid_feed")))
 
     result = fetch_feeds(["bbc_world"])
 
@@ -365,7 +424,7 @@ def test_harmless_encoding_warning_is_not_flagged(mock_http):
     body = load_fixture("encoding_override")
     assert b'encoding="us-ascii"' in body
     assert feedparser.parse(body.decode("utf-8")).bozo  # guard: the fixture really does trigger bozo
-    mock_http.get(FeedURLs["bbc_world"]).mock(return_value=rss_response(body))
+    mock_http.get(FEEDS["bbc_world"].url).mock(return_value=rss_response(body))
 
     result = fetch_feeds(["bbc_world"], limit=1000)
 
@@ -396,14 +455,20 @@ IRAN_GROUP = {"iran", "iranian", "iranians"}
         ("DPRK", [{"north"}, {"korea", "korean", "koreans"}]),
         ("Iran Iranian", [IRAN_GROUP]),  # equivalent words collapse into one group
         ("Saudi Arabia", [{"saudi", "ksa", "arabia"}]),
+        ("Sudan", [{"sudan", "sudanese"}]),
+        ("Palestinian", [{"palestine", "palestinian", "palestinians"}]),
     ],
 )
 def test_keyword_terms(keyword, expected):
     assert _keyword_terms(keyword) == expected
 
 
+def test_feed_name_literal_matches_registry():
+    assert get_args(FeedName) == tuple(FEEDS)
+
+
 def test_us_matches_dotted_us_and_not_unrelated_titles(mock_http):
-    mock_http.get(FeedURLs["bbc_world"]).mock(
+    mock_http.get(FEEDS["bbc_world"].url).mock(
         return_value=rss_response(
             rss(
                 "<item><title>U.S. military action in the Gulf</title><link>https://example.com/a</link>"
@@ -420,7 +485,7 @@ def test_us_matches_dotted_us_and_not_unrelated_titles(mock_http):
 
 
 def test_partial_matches_excluded_when_an_item_matches_all_terms(mock_http):
-    mock_http.get(FeedURLs["bbc_world"]).mock(
+    mock_http.get(FEEDS["bbc_world"].url).mock(
         return_value=rss_response(
             rss(
                 "<item><title>IBM ends U.S. visa sponsorship</title><link>https://example.com/new</link>"
@@ -445,7 +510,7 @@ def _titles_matching(mock_http, keyword, *titles):
         f"<pubDate>Tue, 10 Nov 2026 {12 - n:02d}:00:00 GMT</pubDate></item>"
         for n, t in enumerate(titles)
     ]
-    mock_http.get(FeedURLs["bbc_world"]).mock(return_value=rss_response(rss(*items)))
+    mock_http.get(FEEDS["bbc_world"].url).mock(return_value=rss_response(rss(*items)))
     return [i.title for i in fetch_feeds(["bbc_world"], keyword=keyword, limit=10).items]
 
 
