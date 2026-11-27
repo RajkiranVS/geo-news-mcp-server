@@ -118,6 +118,7 @@ a{color:inherit}
 <h2>Choosing is not the same as including</h2>
 <p>A model can "use" the new feed by adding it to everything. On the three Indian domestic questions, where Al Jazeera adds nothing, Nova Pro still included it <b data-draw="val" data-source="routing" data-field="india_hits" data-where="key=Nova Pro|schema_only">—</b> of <b data-draw="val" data-source="routing" data-field="india_n" data-where="key=Nova Pro|schema_only">—</b> times, gemini-3.8-flash <b data-draw="val" data-source="routing" data-field="india_hits" data-where="key=gemini-3.8-flash|schema_only">—</b> and gpt-5.6-luna <b data-draw="val" data-source="routing" data-field="india_hits" data-where="key=gpt-5.6-luna|schema_only">—</b>.</p>
 <p>The same line, "every feed whose description fits", read as "include them all" for Nova and as "route" for gpt-5.6-luna, which also narrowed: the RBI question went to the Hindu national feed alone. Hit rate alone flatters an include-everything model, so the false-pick rate belongs beside it.</p>
+<p>One caution on Nova's pattern: on the hosted runtimes all ten questions ran in one chat session, so Nova could see and repeat its earlier calls. In a later rerun with a new session for every question, it no longer sent all four feeds every time.</p>
 </section>
 
 <section class="wp-ch" id="sudan" data-mode="calls">
@@ -152,7 +153,7 @@ a{color:inherit}
 <li>Retrieval, relevance and faithfulness fail separately. A citation check proves a fact has a source, not that the answer fits the question.</li>
 <li>Next on the server: drop unknown feeds and report them in <code>failed_feeds</code> rather than rejecting the whole call.</li>
 </ul>
-<p>Caveat: each runtime used a different model, so this compares model and runtime pairs, not clouds. Hosted runs are one run per question; Qwen ran three times each at temperature 0. Feeds are live, so answers drift within hours; only the feed and keyword choices are compared across conditions.</p>
+<p>Caveat: each runtime used a different model, so this compares model and runtime pairs, not clouds. Hosted runs are one run per question, and in these rounds all ten questions shared one chat session, so a model could repeat its earlier calls. The first question, Gaza, had no earlier call to repeat, and its pick flips from no to yes on every hosted model. A rerun with a new session per question kept the result: the hosted models picked Al Jazeera on 11 of 12 questions where it fits. Qwen ran three times each at temperature 0. Feeds are live, so answers drift within hours; only the feed and keyword choices are compared across conditions.</p>
 </section>
 
 </div>

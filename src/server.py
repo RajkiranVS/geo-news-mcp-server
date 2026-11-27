@@ -105,6 +105,7 @@ FEED_PARAM_DESCRIPTION = "One or more feeds to fetch. " + " ".join(
     f"{name}: {feed.about}" for name, feed in FEEDS.items()
 )
 
+
 @mcp.tool(description=GET_FEEDS_DESCRIPTION)
 def get_feeds(
     feed: Annotated[
@@ -112,6 +113,8 @@ def get_feeds(
         Field(
             min_length=1,
             max_length=len(FEEDS),
+            # Kept off aljazeera_all on purpose, so the example can't nudge feed choice.
+            examples=[["hindu_national", "hindu_international"]],
             description=FEED_PARAM_DESCRIPTION,
         ),
     ],
