@@ -158,3 +158,18 @@ def test_every_feed_is_described_to_the_agent(client):
     for name, feed in FEEDS.items():
         assert feed.about in server.GET_FEEDS_DESCRIPTION
         assert feed.about in server.FEED_PARAM_DESCRIPTION
+
+
+def test_feed_examples_use_real_feed_names(client):
+    from feeds import FEEDS
+
+    payload = {"jsonrpc": "2.0", "id": 3, "method": "tools/list", "params": {}}
+    resp = client.post("/mcp", json=payload, headers={**MCP_HEADERS, "x-api-key": API_KEY})
+
+    tool = next(t for t in resp.json()["result"]["tools"] if t["name"] == "get_feeds")
+    examples = tool["inputSchema"]["properties"]["feed"]["examples"]
+    assert examples
+    for example in examples:
+        assert isinstance(example, list) and example
+        assert set(example) <= set(FEEDS)
+        assert len(example) <= len(FEEDS)

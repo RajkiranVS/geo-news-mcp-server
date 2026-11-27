@@ -1,0 +1,11 @@
+query_id,question,runs,result,reason
+1,What's the latest on the Gaza ceasefire talks?,3,pass,
+2,What is happening in Sudan?,3,pass,
+3,Any news from Lebanon?,3,pass,
+4,What's going on in the Sahel?,3,pass,
+5,Latest on Indian state elections,3,pass,
+6,What did India's Supreme Court rule recently?,3,fail,"recursion limit: no keyword, then hopped across three feeds"
+7,Any update on the RBI and India's economy?,3,warn,hindu_international instead of hindu_national
+8,Latest on the war in Ukraine,3,fail,hindu_national (a schema-example feed) included
+9,What's new in US-China trade relations?,3,fail,hindu_national (a schema-example feed) included
+10,Any news on the climate talks?,3,pass,
